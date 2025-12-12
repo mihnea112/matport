@@ -51,24 +51,20 @@ export default function Home() {
       {/* Top bar */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-black/5">
         <Wrap>
-          <div className="py-4 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              {/* Replace with your logo file */}
-              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand-green via-brand-teal to-brand-blue shadow-soft" />
-              <div className="leading-tight">
-                <a href="#" className="flex items-center">
-                  <Image
-                    src="/logo.jpg"
-                    alt="Matport"
-                    width={400}
-                    height={120}
-                    priority
-                    className="h-20 w-auto object-contain"
-                  />
-                </a>
-              </div>
-            </div>
+          <div className="py-3 flex items-center justify-between gap-4">
+            {/* Logo */}
+            <a href="#" className="flex items-center">
+              <Image
+                src="/logo.jpg"
+                alt="Matport"
+                width={520}
+                height={200}
+                priority
+                className="h-[100px] w-auto object-contain"
+              />
+            </a>
 
+            {/* Desktop nav */}
             <nav className="hidden md:flex items-center gap-8 text-sm text-black/70">
               <a className="hover:text-brand-navy" href="#how">
                 Cum funcționează
@@ -78,14 +74,56 @@ export default function Home() {
               </a>
             </nav>
 
-            <div className="flex items-center gap-2">
-              <button className="hidden sm:inline-flex rounded-xl px-4 py-2 text-sm font-semibold border border-black/10 hover:bg-black/5">
+            {/* Desktop actions */}
+            <div className="hidden md:flex items-center gap-2">
+              <button className="rounded-xl px-4 py-2 text-sm font-semibold border border-black/10 hover:bg-black/5">
                 Log in
               </button>
               <button className="rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-soft bg-gradient-to-r from-brand-green via-brand-teal to-brand-blue hover:opacity-95">
                 List surplus
               </button>
             </div>
+
+            {/* Mobile menu */}
+            <details className="relative md:hidden">
+              <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer rounded-xl border border-black/10 bg-white/70 px-3 py-2 hover:bg-black/5">
+                <span className="sr-only">Open menu</span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5 text-brand-navy"
+                >
+                  <path d="M4 6h16" />
+                  <path d="M4 12h16" />
+                  <path d="M4 18h16" />
+                </svg>
+              </summary>
+
+              <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-black/10 bg-white shadow-soft p-3">
+                <div className="grid gap-1">
+                  <a className="rounded-xl px-3 py-2 text-sm font-semibold text-brand-navy hover:bg-black/5" href="#how">
+                    Cum funcționează
+                  </a>
+                  <a className="rounded-xl px-3 py-2 text-sm font-semibold text-brand-navy hover:bg-black/5" href="#market">
+                    Marketplace
+                  </a>
+                </div>
+
+                <div className="mt-3 grid gap-2">
+                  <button className="rounded-xl px-4 py-2 text-sm font-semibold border border-black/10 hover:bg-black/5">
+                    Log in
+                  </button>
+                  <button className="rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-soft bg-gradient-to-r from-brand-green via-brand-teal to-brand-blue hover:opacity-95">
+                    List surplus
+                  </button>
+                </div>
+              </div>
+            </details>
           </div>
         </Wrap>
         <BrandGradientLine />
@@ -117,7 +155,7 @@ export default function Home() {
                 </p>
 
                 <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                  <button className="rounded-2xl px-5 py-3 font-semibold bg-navy text-white shadow-soft hover:bg-brand-navy/90">
+                  <button className="rounded-2xl px-5 py-3 font-semibold bg-[#042948] text-white shadow-soft hover:bg-[#042948]/90 border border-black/10">
                     Explorează marketplace
                   </button>
                   <button className="rounded-2xl px-5 py-3 font-semibold border border-black/10 bg-white/70 hover:bg-black/5">
@@ -170,7 +208,7 @@ export default function Home() {
                       București / Cluj / Timișoara
                     </div>
                   </div>
-                  <button className="rounded-2xl px-4 py-3 font-semibold text-white bg-gradient-to-r from-brand-green via-brand-teal to-brand-blue">
+                  <button className="rounded-2xl px-4 py-3 font-semibold text-white bg-gradient-to-r from-brand-green via-brand-teal to-brand-blue border border-black/10 hover:opacity-95">
                     Caută în Matport
                   </button>
                 </div>
