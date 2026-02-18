@@ -1,35 +1,41 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
+type Ctx = { params: Promise<{ id: string }> };
+
+export async function GET(_: NextRequest, ctx: Ctx) {
+  const { id } = await ctx.params;
+
   const supabase = await supabaseServer();
 
   const { data, error } = await supabase
     .from("listings")
     .select("*, listing_images(id,storage_path,sort_order)")
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
-  if (error)
+  if (error) {
     return NextResponse.json({ error: error.message }, { status: 404 });
-  return NextResponse.json({ listing: data });
+  }
+
+  return NextResponse.json({ listing: data }, { status: 200 });
 }
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: { id: string } },
-) {
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  const { id } = await ctx.params;
+
   const supabase = await supabaseServer();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user)
+
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-  const body = await req.json();
+  const body = await req.json().catch(() => ({}) as any);
 
-  // RLS should ensure only the seller-company owner can update
   const { data, error } = await supabase
     .from("listings")
     .update({
@@ -43,11 +49,13 @@ export async function PATCH(
       pickup_county: body.pickup_county,
       category_id: body.category_id,
     })
-    .eq("id", params.id)
+    .eq("id", id)
     .select("*")
     .single();
 
-  if (error)
+  if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ listing: data });
+  }
+
+  return NextResponse.json({ listing: data }, { status: 200 });
 }
