@@ -7,7 +7,7 @@ const Home = async () => {
 
   const { data: categories } = await supabase
     .from("categories")
-    .select("id,name,slug")
+    .select("id,name,slug,image_path")
     .order("name", { ascending: true });
 
   const { data: listings } = await supabase
@@ -30,19 +30,16 @@ const Home = async () => {
     }
   };
 
-  const categoryImages: Record<string, string> = {
-    ciment:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuA9T1saUzj1ZAx6WnqG5f-IFOce4dCH6g9eTLJfFPxyNWnN-9nrcvLsxXKE9PAEf9IFdztClLSnsHxyJRoJ4GTgiYTbvFMOC4oWTORPDfD6snFtxAFFrQY0z24JMqhP60vKJxHAxikyfrDfZI_LbcRPAFrwumPLmrAezKZ-SIYStMSUPKFlztYR1cst27g4Ptxz1domsUmwFzAHBZIQOHJHQCp7Pgc1Rf6ar2GZ9V5IN5cQhJDXyF4sJDh-_jbZtBSKSKg10vyioiPj",
-    izolatii:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBzjddX2eURtmWehvcMXS6zq9wC6R9AQhlRTjgxNwRshCuGiWRzJSTaekOuZbUyFBVRICoEvkkzrsX3Z8pd4rt1fPRCPJbSzMDPZKCsGI9VCsvifSqpkyCCZOwFeNuE-4BhNucyZmUf-lKSui2kmzO4xSn7ytjQmAbXLWDbnSA3_LEWvqqIBSvbsH1Q-TSDdqbmyK1ZLjSsW-0oLXu860GvJmtUa7ZIoLY8hvy9IdE_obnWEx0akm39QXD9JoTh4ZEQ65BFGl3_IHOw",
-    "gresie-faianta":
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCxElmkVgNlfwT-7fAcoRkQN3XTHC6Wcxs_CF3jdrU-lMY_u0DIX1JL8bg-MPTYvvAytf17N7S84Fs0E7p9pPNQ89pM8vDdjelm8SNbtruPUA_OMH0llqVNG3xOU0mh1luO3QsOQAQgPFumIJYyoMTWa4WMsiNAretSrDKIeCEZkbePGFT_d3pSGaO9F0gKEtZ2ItKKbuk5wIAqGGHZVw--HUEtTwjcY7pZfY2K-GxSBCrNt66sWrbBwAO-F7jsS4EyMbZ6Pu1QUGem",
-    electrice:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBgMhvUxa2er2x0snxjPsSQB4iNgvbI1RYy4hJKDM2nHibIWaKzjKPzGNiDkKJll7UWFuN0lyoWVEFO5SKbKfZPZI3excbIWC3b4oXkfxFbhnNiDoYgha50g72ZioxhI6_v-cywiEObigbZ40KVS4R0oCcHcyHLTuZoA_VERi8YUb4wUJ1fFoCw8gBg5zR_gKt6Rq5-Cktu87OqkzTMm93KrcDE1tMir-ReW5SJiNhkmbjIwvj3oBNu_T29WBHfm92W6wQ3f-OQKAzr",
-    sanitare:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCm7WrnjOZiMkChz3auAQBRSSy8UcdR4QXsKTKy3LDpCBoHZXm9NzOPo1WepGuC2eSno4qJXMLGoxBb-alyRRLJ8dUn3e-vJ3bsNhWHq0TD7pjSSBTY0R8ckW2YjPGpQ65QHRso2C8Ef_noIX6QSznqAm4yR_0TVLFDc3jDvSwy0WuK2dNGos0gr20hjU-C7kIyEKzKio2pmY5-NOSp9PdgZ9y0k46uml4o1KfxmXsmpatBU4bKgo7UMFSGQrhsiYuvWHNApzmgnDqJ",
-    unelte:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCAuSCvXwxG2k7vrRBDct7x5U8YsV-VxmLlHDK4QwS4aeiv3H3-leLIPdD2VdRIuWaVsV8ztCZ8aX-lPsl_inqjYJCVmTJtjUQEDXYl66r0BgFY8lzDgINdF02-dxcBbW3mv2RMmpt-xNDMpRurwx9Ow6sghHM2gDOYQT7oKsTIDGaUXhmq7wtGXaG0lmzs_qYQjCb5f8K3Ijv3mcZtUv20E-veO9llz1TFgBgyCa0Me10Ttr-6PK9HKMmznv6Un4Gh8AyrMYuXfkV8",
+  const getPublicCategoryImageUrl = (storagePath: string | null | undefined) => {
+    if (!storagePath) return null;
+    try {
+      const { data } = supabase.storage
+        .from("category-images")
+        .getPublicUrl(storagePath);
+      return data?.publicUrl ?? null;
+    } catch {
+      return null;
+    }
   };
 
   const fallbackImage =
@@ -178,7 +175,9 @@ const Home = async () => {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {(categories ?? []).map((cat: any) => {
-              const img = categoryImages[cat.slug] ?? fallbackImage;
+              const img =
+                getPublicCategoryImageUrl(cat.image_path) ??
+                fallbackImage;
               return (
                 <Link
                   key={cat.id}

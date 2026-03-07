@@ -9,7 +9,7 @@ export async function GET(_req: NextRequest) {
 
   const { data, error } = await supabase
     .from("categories")
-    .select("id,name,slug")
+    .select("id,name,slug,image_path")
     .order("name", { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -23,6 +23,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const name = String(body.name ?? "").trim();
   const slug = String(body.slug ?? "").trim();
+  const image_path =
+    body.image_path === null || body.image_path === undefined
+      ? null
+      : String(body.image_path).trim() || null;
 
   if (!name || !slug) {
     return NextResponse.json({ error: "name and slug required" }, { status: 400 });
@@ -30,8 +34,8 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabase
     .from("categories")
-    .insert({ name, slug })
-    .select("id,name,slug")
+    .insert({ name, slug, image_path })
+    .select("id,name,slug,image_path")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -49,8 +53,16 @@ export async function PATCH(req: NextRequest) {
   const patch: any = {};
   if (typeof body.name === "string") patch.name = String(body.name).trim();
   if (typeof body.slug === "string") patch.slug = String(body.slug).trim();
+  if (body.image_path === null) patch.image_path = null;
+  if (typeof body.image_path === "string") {
+    patch.image_path = String(body.image_path).trim() || null;
+  }
 
-  if (!patch.name && !patch.slug) {
+  if (
+    patch.name === undefined &&
+    patch.slug === undefined &&
+    patch.image_path === undefined
+  ) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
@@ -58,7 +70,7 @@ export async function PATCH(req: NextRequest) {
     .from("categories")
     .update(patch)
     .eq("id", id)
-    .select("id,name,slug")
+    .select("id,name,slug,image_path")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
