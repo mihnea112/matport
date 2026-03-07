@@ -1,11 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { adminSupabase } from "../_admin";
+import { supabaseServer } from "@/lib/supabase/server";
 
-export async function GET(req: Request) {
-  const { supabase, isAdmin } = await adminSupabase(req);
-  if (!isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+export async function GET(_req: NextRequest) {
+  // Public read: used by homepage and listing form.
+  // RLS should allow SELECT for public/authenticated as desired.
+  const supabase = await supabaseServer();
 
-  // Works even if some optional columns don't exist (but adjust select if needed)
   const { data, error } = await supabase
     .from("categories")
     .select("id,name,slug")
@@ -15,7 +16,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ categories: data ?? [] });
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const { supabase, isAdmin } = await adminSupabase(req);
   if (!isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, category: data });
 }
 
-export async function PATCH(req: Request) {
+export async function PATCH(req: NextRequest) {
   const { supabase, isAdmin } = await adminSupabase(req);
   if (!isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -64,7 +65,7 @@ export async function PATCH(req: Request) {
   return NextResponse.json({ ok: true, category: data });
 }
 
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
   const { supabase, isAdmin } = await adminSupabase(req);
   if (!isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

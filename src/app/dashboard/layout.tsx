@@ -24,10 +24,12 @@ export default function DashboardLayout({
         .from("profiles")
         .select("role")
         .eq("user_id", userId)
-        .maybeSingle();
+        .limit(1);
 
-      if (!error && data?.role) {
-        const r = data.role === "admin" ? "admin" : "user";
+      const first = Array.isArray(data) ? data[0] : null;
+
+      if (!error && (first as any)?.role) {
+        const r = (first as any).role === "admin" ? "admin" : "user";
         setRole(r);
         try {
           localStorage.setItem("matport_role", r);
@@ -84,6 +86,25 @@ export default function DashboardLayout({
     };
   }, [router, supabase]);
 
+  useEffect(() => {
+    const isAdminRoute = pathname?.startsWith("/dashboard/admin");
+
+    if (checking) return;
+    if (!isAuthed) return;
+
+    // Users cannot access admin routes
+    if (isAdminRoute && role !== "admin") {
+      router.replace("/dashboard");
+      return;
+    }
+
+    // Admins should stay inside /dashboard/admin/* only
+    if (!isAdminRoute && role === "admin") {
+      router.replace("/dashboard/admin/listings");
+      return;
+    }
+  }, [checking, isAuthed, role, pathname, router]);
+
   const onLogout = async () => {
     await supabase.auth.signOut();
     router.replace("/login");
@@ -126,17 +147,19 @@ export default function DashboardLayout({
       <aside className="w-64 bg-white border-r border-[#e2e8f0] flex flex-col h-screen shrink-0 z-20">
 
         <nav className="flex-1 overflow-y-auto py-6 px-3 flex flex-col gap-1">
-          {navItem("/dashboard", "Listările Mele", "inventory_2")}
-          {navItem("/dashboard/messages", "Mesaje", "mail")}
-          {navItem("/dashboard/profile", "Profil Companie", "business")}
-
-          {role === "admin" && (
+          {role !== "admin" ? (
             <>
-              <div className="my-4 border-t border-[#e2e8f0] mx-3"></div>
+              {navItem("/dashboard", "Listările Mele", "inventory_2")}
+              {navItem("/dashboard/messages", "Mesaje", "mail")}
+              {navItem("/dashboard/profile", "Profil Companie", "business")}
+            </>
+          ) : (
+            <>
               <div className="px-3 pb-2 pt-1 text-[11px] uppercase tracking-wider text-text-muted font-bold">
                 Admin
               </div>
               {navItem("/dashboard/admin/categories", "Categorii", "category")}
+              {navItem("/dashboard/admin/companies", "Companii", "business")}
               {navItem("/dashboard/admin/listings", "Moderare Listări", "gavel")}
             </>
           )}

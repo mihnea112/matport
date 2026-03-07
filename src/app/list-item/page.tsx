@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+
+type Category = { id: number | string; name: string; slug: string };
 
 const SellerListing: React.FC = () => {
   const router = useRouter();
@@ -11,6 +12,50 @@ const SellerListing: React.FC = () => {
 
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isAuthed, setIsAuthed] = useState(false);
+
+  // Categories
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+
+  // Form state
+  const [title, setTitle] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [condition, setCondition] = useState("Nou (Sigilat)");
+  const [description, setDescription] = useState("");
+
+  const [pricePerUnit, setPricePerUnit] = useState<string>("");
+  const [unit, setUnit] = useState("pcs");
+  const [vatIncluded, setVatIncluded] = useState(false);
+
+  const [quantity, setQuantity] = useState<string>("");
+  const [minOrder, setMinOrder] = useState<string>("");
+
+  const [pickupAddress, setPickupAddress] = useState("");
+  const [pickupCity, setPickupCity] = useState("");
+  const [pickupCounty, setPickupCounty] = useState("");
+  const [pickupPostal, setPickupPostal] = useState("");
+
+  const uuid = () => {
+    // Safari/private modes can be weird; keep a fallback
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c: any = globalThis.crypto;
+    if (c?.randomUUID) return c.randomUUID();
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  };
+
+  type PendingUpload = {
+    id: string;
+    file: File;
+    previewUrl: string;
+    storagePath: string | null;
+    uploading: boolean;
+    error: string | null;
+  };
+
+  const [uploads, setUploads] = useState<PendingUpload[]>([]);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -40,6 +85,125 @@ const SellerListing: React.FC = () => {
     };
   }, [router, supabase]);
 
+  useEffect(() => {
+    (async () => {
+      if (!isAuthed) return;
+
+      try {
+        setLoadingCategories(true);
+        const res = await fetch("/api/admin/categories", { cache: "no-store" });
+        const json = await res.json().catch(() => ({}));
+        const cats = Array.isArray(json?.categories) ? (json.categories as Category[]) : [];
+        setCategories(cats);
+        // Default to first category if none selected
+        if (!categoryId && cats[0]?.id != null) setCategoryId(String(cats[0].id));
+      } catch {
+        setCategories([]);
+      } finally {
+        setLoadingCategories(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthed]);
+
+  const uploadOne = async (u: PendingUpload) => {
+    const ext = u.file.name.split(".").pop() || "bin";
+    const key = `tmp/${uuid()}.${ext}`;
+
+    console.log("[list-item] upload start", {
+      name: u.file.name,
+      size: u.file.size,
+      type: u.file.type,
+      key,
+    });
+
+    setUploads((prev) =>
+      prev.map((x) => (x.id === u.id ? { ...x, uploading: true, error: null } : x))
+    );
+
+    let upErr: any = null;
+    try {
+      const res = await supabase.storage
+        .from("listing-images")
+        .upload(key, u.file, {
+          upsert: false,
+          contentType: u.file.type || "application/octet-stream",
+          cacheControl: "3600",
+        });
+      upErr = res.error;
+    } catch (e: any) {
+      upErr = { message: e?.message ?? String(e), cause: e?.cause?.message ?? null };
+    }
+
+    console.log("[list-item] upload result", {
+      ok: !upErr,
+      key,
+      error: upErr?.message ?? null,
+      cause: upErr?.cause ?? null,
+    });
+
+    if (upErr) {
+      setUploads((prev) =>
+        prev.map((x) =>
+          x.id === u.id ? { ...x, uploading: false, error: upErr.message } : x
+        )
+      );
+      return;
+    }
+
+    setUploads((prev) =>
+      prev.map((x) =>
+        x.id === u.id
+          ? { ...x, uploading: false, storagePath: key, error: null }
+          : x
+      )
+    );
+  };
+
+  const onPickFiles = async (picked: File[]) => {
+    if (!picked.length) return;
+
+    const newOnes: PendingUpload[] = picked.map((file) => ({
+      id: uuid(),
+      file,
+      previewUrl: URL.createObjectURL(file),
+      storagePath: null,
+      uploading: true,
+      error: null,
+    }));
+
+    setUploads((prev) => [...prev, ...newOnes]);
+
+    for (const u of newOnes) {
+      // eslint-disable-next-line no-await-in-loop
+      await uploadOne(u);
+    }
+  };
+
+  const removeUpload = async (uploadId: string) => {
+    const target = uploads.find((u) => u.id === uploadId);
+    if (!target) return;
+
+    try {
+      URL.revokeObjectURL(target.previewUrl);
+    } catch {}
+
+    if (target.storagePath) {
+      const { error } = await supabase.storage
+        .from("listing-images")
+        .remove([target.storagePath]);
+      if (error) console.warn("[list-item] storage remove failed", {
+        message: error.message,
+        name: target.storagePath,
+      });
+    }
+
+    setUploads((prev) => prev.filter((u) => u.id !== uploadId));
+  };
+
+  const uploadingAny = uploads.some((u) => u.uploading);
+  const uploadErrors = uploads.filter((u) => u.error);
+
   if (checkingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
@@ -53,9 +217,105 @@ const SellerListing: React.FC = () => {
     return null;
   }
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: wire to POST /api/listings
+    setSubmitError(null);
+
+    // Basic validation (MVP)
+    if (!title.trim()) return setSubmitError("Completează titlul listării.");
+    if (!categoryId) return setSubmitError("Selectează o categorie.");
+    if (!Number.isFinite(Number(categoryId))) return setSubmitError("Categorie invalidă.");
+    if (!pricePerUnit.trim()) return setSubmitError("Completează prețul per unitate.");
+    if (!quantity.trim()) return setSubmitError("Completează cantitatea totală.");
+
+    const price = Number(pricePerUnit);
+    const qty = Number(quantity);
+    if (!Number.isFinite(price) || price < 0) return setSubmitError("Preț invalid.");
+    if (!Number.isFinite(qty) || qty <= 0) return setSubmitError("Cantitate invalidă.");
+
+    if (uploadingAny) return setSubmitError("Așteaptă finalizarea încărcării pozelor.");
+    if (uploadErrors.length > 0)
+      return setSubmitError("Unele poze au eșuat la încărcare. Șterge-le sau reîncearcă.");
+
+    setSubmitting(true);
+
+    try {
+      const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+      if (sessionErr) throw new Error(sessionErr.message);
+      const token = sessionData.session?.access_token;
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      // Compute price_total from per-unit * quantity (your DB currently uses price_total in PATCH route)
+      const price_total = price * qty;
+
+      const payload = {
+        title: title.trim(),
+        description: description.trim() || null,
+        quantity: qty,
+        unit,
+        price_total,
+        pickup_city: pickupCity.trim() || null,
+        pickup_county: pickupCounty.trim() || null,
+        category_id: Number(categoryId),
+        // Extra form fields (only used if your DB has these columns; your API can ignore unknown fields)
+        condition,
+        vat_included: vatIncluded,
+        min_order: minOrder ? Number(minOrder) : null,
+        pickup_address: pickupAddress.trim() || null,
+        pickup_postal: pickupPostal.trim() || null,
+      };
+
+      const res = await fetch("/api/listings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json?.error ? String(json.error) : "Failed to create listing.");
+      }
+
+      const listing = json?.listing;
+      const listingId = String(listing?.id ?? "");
+
+      // Optional: bind uploaded images
+      if (listingId && uploads.length > 0) {
+        const ready = uploads
+          .filter((u) => u.storagePath)
+          .map((u) => u.storagePath as string);
+
+        for (let i = 0; i < ready.length; i++) {
+          const storage_path = ready[i];
+
+          const imgRes = await fetch(`/api/listings/${encodeURIComponent(listingId)}/images`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ storage_path, sort_order: i }),
+          });
+
+          const imgJson = await imgRes.json().catch(() => ({}));
+          if (!imgRes.ok) {
+            throw new Error(imgJson?.error ? String(imgJson.error) : "Failed to attach image.");
+          }
+        }
+      }
+
+      router.push("/dashboard");
+    } catch (err: any) {
+      setSubmitError(err?.message ?? "Unknown error");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -118,6 +378,8 @@ const SellerListing: React.FC = () => {
                       name="title"
                       placeholder="ex. Palet Cărămidă Porotherm 250mm"
                       type="text"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
                     />
                     <p className="mt-1 text-xs text-gray-500">
                       Include marca și dimensiunile cheie.
@@ -131,18 +393,26 @@ const SellerListing: React.FC = () => {
                       >
                         Categorie *
                       </label>
-                      <select
-                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-seller-primary focus:ring-seller-primary sm:text-sm py-2.5 bg-white"
-                        id="category"
-                        name="category"
-                      >
-                        <option>Selectează o categorie...</option>
-                        <option>Structurale (Ciment, Cărămidă)</option>
-                        <option>Izolații</option>
-                        <option>Acoperișuri</option>
-                        <option>Finisaje (Gresie, Parchet)</option>
-                        <option>Electrice & Sanitare</option>
-                      </select>
+                          <select
+                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-seller-primary focus:ring-seller-primary sm:text-sm py-2.5 bg-white"
+                            id="category"
+                            name="category"
+                            value={categoryId}
+                            onChange={(e) => setCategoryId(e.target.value)}
+                            disabled={loadingCategories}
+                          >
+                            {loadingCategories ? (
+                              <option>Se încarcă…</option>
+                            ) : categories.length === 0 ? (
+                              <option value="">Nicio categorie</option>
+                            ) : (
+                              categories.map((c) => (
+                                <option key={String(c.id)} value={String(c.id)}>
+                                  {c.name}
+                                </option>
+                              ))
+                            )}
+                          </select>
                     </div>
                     <div>
                       <label
@@ -155,6 +425,8 @@ const SellerListing: React.FC = () => {
                         className="block w-full rounded-md border-gray-300 shadow-sm focus:border-seller-primary focus:ring-seller-primary sm:text-sm py-2.5 bg-white"
                         id="condition"
                         name="condition"
+                        value={condition}
+                        onChange={(e)=>setCondition(e.target.value)}
                       >
                         <option>Nou (Sigilat)</option>
                         <option>Nou (Desigilat)</option>
@@ -176,6 +448,8 @@ const SellerListing: React.FC = () => {
                       name="description"
                       placeholder="Listează specificații tehnice, numere de lot, condiții de stocare..."
                       rows={4}
+                      value={description}
+                      onChange={(e)=>setDescription(e.target.value)}
                     ></textarea>
                   </div>
                 </div>
@@ -210,6 +484,8 @@ const SellerListing: React.FC = () => {
                           name="price"
                           placeholder="0.00"
                           type="number"
+                          value={pricePerUnit}
+                          onChange={(e) => setPricePerUnit(e.target.value)}
                         />
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
                           <span className="text-gray-500 sm:text-sm font-bold">
@@ -229,6 +505,8 @@ const SellerListing: React.FC = () => {
                         className="block w-full rounded-md border-gray-300 shadow-sm focus:border-seller-primary focus:ring-seller-primary sm:text-sm py-2.5 bg-white"
                         id="unit"
                         name="unit"
+                        value={unit}
+                        onChange={(e) => setUnit(e.target.value)}
                       >
                         <option value="pcs">Bucată (buc)</option>
                         <option value="m2">Metru Pătrat (m²)</option>
@@ -243,6 +521,8 @@ const SellerListing: React.FC = () => {
                         id="vat"
                         name="vat"
                         type="checkbox"
+                        checked={vatIncluded}
+                        onChange={(e) => setVatIncluded(e.target.checked)}
                       />
                       <label
                         className="ml-2 block text-sm text-gray-700"
@@ -266,6 +546,8 @@ const SellerListing: React.FC = () => {
                         name="quantity"
                         placeholder="e.g. 500"
                         type="number"
+                        value={quantity}
+                        onChange={(e) => setQuantity(e.target.value)}
                       />
                     </div>
                     <div>
@@ -281,6 +563,8 @@ const SellerListing: React.FC = () => {
                         name="min_order"
                         placeholder="e.g. 10"
                         type="number"
+                        value={minOrder}
+                        onChange={(e) => setMinOrder(e.target.value)}
                       />
                     </div>
                   </div>
@@ -321,7 +605,41 @@ const SellerListing: React.FC = () => {
                               id="file-upload"
                               name="file-upload"
                               type="file"
+                              multiple
+                              onChange={(e) => onPickFiles(Array.from(e.target.files ?? []))}
                             />
+                  {uploads.length > 0 && (
+                    <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {uploads.map((u) => (
+                        <div
+                          key={u.id}
+                          className="relative rounded-md overflow-hidden border border-gray-200 bg-white"
+                        >
+                          <div
+                            className="aspect-square bg-cover bg-center"
+                            style={{ backgroundImage: `url("${u.previewUrl}")` }}
+                          />
+                          <div className="p-2 flex items-center justify-between gap-2">
+                            <span className="text-[11px] text-gray-500 truncate">
+                              {u.uploading ? "Se încarcă…" : u.error ? "Eroare" : "Încărcat"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeUpload(u.id)}
+                              className="text-[11px] font-bold text-red-600 hover:underline"
+                            >
+                              Șterge
+                            </button>
+                          </div>
+                          {u.error && (
+                            <div className="px-2 pb-2 text-[11px] text-red-600">
+                              {u.error}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                           </label>
                           <p className="pl-1">sau trage și plasează</p>
                         </div>
@@ -349,6 +667,25 @@ const SellerListing: React.FC = () => {
                           name="address"
                           placeholder="Adresă Stradă"
                           type="text"
+                          value={pickupAddress}
+                          onChange={(e)=>setPickupAddress(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label
+                          className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5"
+                          htmlFor="county"
+                        >
+                          Județ
+                        </label>
+                        <input
+                          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-seller-primary focus:ring-seller-primary sm:text-sm py-2.5 bg-white"
+                          id="county"
+                          name="county"
+                          placeholder="ex. Ilfov"
+                          type="text"
+                          value={pickupCounty}
+                          onChange={(e)=>setPickupCounty(e.target.value)}
                         />
                       </div>
                       <div>
@@ -364,9 +701,11 @@ const SellerListing: React.FC = () => {
                           name="city"
                           placeholder="București"
                           type="text"
+                          value={pickupCity}
+                          onChange={(e)=>setPickupCity(e.target.value)}
                         />
                       </div>
-                      <div>
+                      <div className="md:col-span-2">
                         <label
                           className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5"
                           htmlFor="postal"
@@ -378,6 +717,8 @@ const SellerListing: React.FC = () => {
                           id="postal"
                           name="postal"
                           type="text"
+                          value={pickupPostal}
+                          onChange={(e)=>setPickupPostal(e.target.value)}
                         />
                       </div>
                     </div>
@@ -385,6 +726,26 @@ const SellerListing: React.FC = () => {
                 </div>
               </section>
 
+              {uploadErrors.length > 0 && (
+                <div className="p-3 rounded-md border border-amber-200 bg-amber-50 text-sm text-amber-800">
+                  <div className="font-bold">Unele poze nu s-au încărcat</div>
+                  <ul className="mt-2 list-disc pl-5 space-y-1">
+                    {uploadErrors.slice(0, 5).map((u) => (
+                      <li key={u.id} className="font-mono text-[12px]">
+                        {u.file.name}: {u.error}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-2 text-[12px] text-amber-900/80">
+                    Deschide DevTools → Console și caută logs cu prefixul <span className="font-mono">[list-item]</span>.
+                  </div>
+                </div>
+              )}
+              {submitError && (
+                <div className="p-3 rounded-md border border-red-200 bg-red-50 text-sm text-red-700">
+                  {submitError}
+                </div>
+              )}
               <div className="flex items-center justify-end gap-4 pt-4">
                 <button
                   className="text-sm font-bold text-gray-600 hover:text-gray-900"
@@ -393,10 +754,11 @@ const SellerListing: React.FC = () => {
                   Anulează
                 </button>
                 <button
-                  className="w-full sm:w-auto px-8 py-3 bg-seller-primary text-white text-base font-bold rounded-lg hover:bg-seller-primary-hover shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-8 py-3 bg-seller-primary text-white text-base font-bold rounded-lg hover:bg-seller-primary-hover shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-60"
                   type="submit"
+                  disabled={submitting || uploadingAny}
                 >
-                  <span>Publică Listarea</span>
+                  <span>{submitting ? "Se salvează…" : uploadingAny ? "Se încarcă pozele…" : "Publică Listarea"}</span>
                   <span className="material-symbols-outlined text-sm">
                     arrow_forward
                   </span>
