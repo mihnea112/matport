@@ -24,6 +24,24 @@ function formatMoney(value: unknown, currency: unknown) {
   return `${n.toLocaleString("ro-RO")} ${c}`;
 }
 
+function formatUnitLabel(unit: string) {
+  const u = (unit || "").trim();
+  if (!u) return "unit";
+  if (u === "pcs") return "buc";
+  if (u === "m2") return "m²";
+  if (u === "m3") return "m³";
+  if (u === "kg") return "kg";
+  if (u === "pallet") return "palet";
+  return u;
+}
+
+function computeUnitPrice(total: unknown, qty: unknown) {
+  const t = toNum(total);
+  const q = toNum(qty);
+  if (t === null || q === null || q <= 0) return null;
+  return t / q;
+}
+
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "MP";
@@ -91,11 +109,19 @@ export default async function ProductDetail({ params }: Props) {
   const heroUrl =
     getPublicImageUrl(sortedImgs[0]?.storage_path) || fallbackImage;
 
-  const priceLabel = formatMoney(listing.price_total, listing.currency);
-  const qtyLabel =
-    listing.quantity != null
-      ? `${String(listing.quantity)} ${String(listing.unit ?? "").trim()}`.trim()
-      : "—";
+  const currency = String(listing.currency ?? "RON").trim() || "RON";
+  const qtyNum = toNum(listing.quantity);
+  const unitLabel = formatUnitLabel(String(listing.unit ?? ""));
+  const totalNum = toNum(listing.price_total);
+  const unitPrice = computeUnitPrice(listing.price_total, listing.quantity);
+
+  const unitPriceLabel =
+    unitPrice !== null
+      ? `${unitPrice.toLocaleString("ro-RO", { maximumFractionDigits: 2 })} ${currency}`
+      : null;
+
+  const totalPriceLabel =
+    totalNum !== null ? `${totalNum.toLocaleString("ro-RO")} ${currency}` : null;
 
   const city = String(listing.pickup_city ?? "").trim();
   const county = String(listing.pickup_county ?? "").trim();
@@ -198,10 +224,16 @@ export default async function ProductDetail({ params }: Props) {
                       <tbody className="divide-y divide-[#e5e7eb]">
                         <tr className="bg-neutral-light/50">
                           <th className="px-4 py-3 font-medium text-[#617289] w-1/3">
-                            Cantitate
+                            Cantitate disponibilă
                           </th>
                           <td className="px-4 py-3 font-medium text-[#111418]">
-                            {qtyLabel}
+                            {qtyNum !== null ? (
+                              <span className="font-mono">
+                                {qtyNum} {unitLabel}
+                              </span>
+                            ) : (
+                              "—"
+                            )}
                           </td>
                         </tr>
                         <tr>
@@ -214,10 +246,32 @@ export default async function ProductDetail({ params }: Props) {
                         </tr>
                         <tr className="bg-neutral-light/50">
                           <th className="px-4 py-3 font-medium text-[#617289]">
-                            Preț total
+                            Preț / unitate
                           </th>
                           <td className="px-4 py-3 font-medium text-[#111418]">
-                            {priceLabel}
+                            {unitPriceLabel ? (
+                              <div className="flex flex-col">
+                                <span className="text-primary font-black">
+                                  {unitPriceLabel} / {unitLabel}
+                                </span>
+                                {totalPriceLabel && (
+                                  <span className="text-xs text-[#617289] font-normal mt-0.5">
+                                    Total: {totalPriceLabel}
+                                  </span>
+                                )}
+                              </div>
+                            ) : totalPriceLabel ? (
+                              <div className="flex flex-col">
+                                <span className="text-primary font-black">
+                                  {totalPriceLabel}
+                                </span>
+                                <span className="text-xs text-[#617289] font-normal mt-0.5">
+                                  (nu se poate calcula prețul / unitate)
+                                </span>
+                              </div>
+                            ) : (
+                              "Preț la cerere"
+                            )}
                           </td>
                         </tr>
                         {company?.cui && (
@@ -253,14 +307,6 @@ export default async function ProductDetail({ params }: Props) {
                     <h1 className="text-2xl md:text-3xl font-black text-[#111418] leading-tight">
                       {listing.title}
                     </h1>
-                    <button
-                      className="p-2 rounded-full hover:bg-neutral-light text-[#617289] hover:text-red-500 transition-colors"
-                      type="button"
-                    >
-                      <span className="material-symbols-outlined">
-                        favorite
-                      </span>
-                    </button>
                   </div>
                   <div className="flex items-center gap-2 mt-2 text-[#617289] text-sm">
                     <span className="material-symbols-outlined text-lg">
@@ -270,13 +316,36 @@ export default async function ProductDetail({ params }: Props) {
                       {location}
                     </span>
                   </div>
-                  <div className="mt-6 flex flex-wrap items-baseline gap-4">
-                    <span className="text-4xl font-black text-primary">
-                      {priceLabel}
-                    </span>
-                    <span className="text-sm text-[#617289] ml-auto">
-                      Preț total
-                    </span>
+                  <div className="mt-6 flex flex-col gap-1">
+                    {unitPriceLabel ? (
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-4xl font-black text-primary">
+                          {unitPriceLabel}
+                        </span>
+                        <span className="text-base text-[#617289] font-medium">
+                          / {unitLabel}
+                        </span>
+                      </div>
+                    ) : totalPriceLabel ? (
+                      <span className="text-4xl font-black text-primary">
+                        {totalPriceLabel}
+                      </span>
+                    ) : (
+                      <span className="text-2xl font-bold text-[#617289]">
+                        Preț la cerere
+                      </span>
+                    )}
+
+                    {totalPriceLabel && unitPriceLabel && (
+                      <div className="text-sm text-[#617289]">Total: {totalPriceLabel}</div>
+                    )}
+
+                    {qtyNum !== null && (
+                      <div className="text-sm text-[#617289]">
+                        Cantitate disponibilă: <span className="font-mono">{qtyNum}</span>{" "}
+                        <span className="font-mono">{unitLabel}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -288,7 +357,11 @@ export default async function ProductDetail({ params }: Props) {
                     <div>
                       <p className="font-bold text-[#111418]">Disponibil</p>
                       <p className="text-xs text-[#617289]">
-                        Cantitate: {qtyLabel}
+                        Cantitate: {qtyNum !== null ? (
+                          <span className="font-mono">{qtyNum} {unitLabel}</span>
+                        ) : (
+                          "—"
+                        )}
                       </p>
                     </div>
                   </div>
@@ -381,10 +454,14 @@ export default async function ProductDetail({ params }: Props) {
                       <tbody className="divide-y divide-[#e5e7eb]">
                         <tr className="bg-neutral-light/50">
                           <th className="px-4 py-3 font-medium text-[#617289] w-1/3">
-                            Cantitate
+                            Cantitate disponibilă
                           </th>
                           <td className="px-4 py-3 font-medium text-[#111418]">
-                            {qtyLabel}
+                            {qtyNum !== null ? (
+                              <span className="font-mono">{qtyNum} {unitLabel}</span>
+                            ) : (
+                              "—"
+                            )}
                           </td>
                         </tr>
                         <tr>
@@ -397,10 +474,18 @@ export default async function ProductDetail({ params }: Props) {
                         </tr>
                         <tr className="bg-neutral-light/50">
                           <th className="px-4 py-3 font-medium text-[#617289]">
-                            Preț total
+                            Preț / unitate
                           </th>
                           <td className="px-4 py-3 font-medium text-[#111418]">
-                            {priceLabel}
+                            {unitPriceLabel ? (
+                              <span className="text-primary font-black">
+                                {unitPriceLabel} / {unitLabel}
+                              </span>
+                            ) : totalPriceLabel ? (
+                              <span className="text-primary font-black">{totalPriceLabel}</span>
+                            ) : (
+                              "Preț la cerere"
+                            )}
                           </td>
                         </tr>
                       </tbody>

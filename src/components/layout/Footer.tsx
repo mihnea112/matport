@@ -36,7 +36,7 @@ const Footer: React.FC = () => {
           </div>
         </div>
         <div className="pt-8 border-t border-[#f0f2f4] flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-[#617289]">© 2023 MatPort România. Toate drepturile rezervate.</p>
+          <p className="text-sm text-[#617289]">© {new Date().getFullYear()} MatPort România. Toate drepturile rezervate.</p>
           <div className="flex gap-4">
             <a className="text-[#617289] hover:text-primary" href="#"><span className="material-symbols-outlined text-lg">public</span> RO</a>
             <a className="text-[#617289] hover:text-primary" href="#"><span className="material-symbols-outlined text-lg">social_leaderboard</span></a>

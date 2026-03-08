@@ -13,7 +13,7 @@ const Home = async () => {
   const { data: listings } = await supabase
     .from("listings")
     .select(
-      "id,title,price_total,currency,pickup_city,pickup_county,created_at, listing_images(storage_path,sort_order)",
+      "id,title,price_total,quantity,unit,currency,pickup_city,pickup_county,created_at, listing_images(storage_path,sort_order)",
     )
     .order("created_at", { ascending: false })
     .limit(4);
@@ -236,12 +236,21 @@ const Home = async () => {
               const city = String(l?.pickup_city ?? "");
               const county = String(l?.pickup_county ?? "");
 
-              const rawPrice = l?.price_total;
-              const price =
-                typeof rawPrice === "number" ? rawPrice : Number(rawPrice);
-              const hasPrice = Number.isFinite(price);
+              const rawTotal = l?.price_total;
+              const total =
+                typeof rawTotal === "number" ? rawTotal : Number(rawTotal);
+              const hasTotal = Number.isFinite(total);
+
+              const rawQty = l?.quantity;
+              const qty = typeof rawQty === "number" ? rawQty : Number(rawQty);
+              const hasQty = Number.isFinite(qty) && qty > 0;
+
+              const unit = String(l?.unit ?? "").trim();
 
               const currency = String(l?.currency ?? "RON").trim() || "RON";
+
+              const unitPrice = hasTotal && hasQty ? total / qty : NaN;
+              const hasUnitPrice = Number.isFinite(unitPrice);
 
               return (
                 <Link
@@ -261,15 +270,32 @@ const Home = async () => {
                         {title}
                       </h3>
                     </div>
-                    <div className="flex items-baseline gap-2 mt-1">
-                      {hasPrice ? (
+                    <div className="flex flex-col gap-1 mt-1">
+                      {hasUnitPrice ? (
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xl font-black text-primary">
+                            {unitPrice.toLocaleString("ro-RO", {
+                              maximumFractionDigits: 2,
+                            })}{" "}
+                            {currency}
+                          </span>
+                          <span className="text-sm text-[#617289] font-medium">
+                            / {unit || "unit"}
+                          </span>
+                        </div>
+                      ) : hasTotal ? (
                         <span className="text-xl font-black text-primary">
-                          {price.toLocaleString("ro-RO")} {currency}
+                          {total.toLocaleString("ro-RO")} {currency}
                         </span>
                       ) : (
-                        <span className="text-sm text-[#617289]">
-                          Preț la cerere
-                        </span>
+                        <span className="text-sm text-[#617289]">Preț la cerere</span>
+                      )}
+
+                      {hasQty && (
+                        <div className="text-xs text-[#617289]">
+                          Cantitate disponibilă: <span className="font-mono">{qty}</span>{" "}
+                          <span className="font-mono">{unit}</span>
+                        </div>
                       )}
                     </div>
                     <div className="text-xs text-[#617289] flex items-center gap-1 mt-2">

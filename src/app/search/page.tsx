@@ -12,6 +12,8 @@ type Listing = {
   id: string;
   title: string;
   price_total: string | number;
+  quantity: string | number;
+  unit: string;
   currency: string;
   pickup_city: string | null;
   pickup_county: string | null;
@@ -37,6 +39,24 @@ function formatMoney(value: unknown, currency: unknown) {
   const c = String(currency ?? "RON").trim() || "RON";
   if (n === null) return "Preț la cerere";
   return `${n.toLocaleString("ro-RO")} ${c}`;
+}
+
+function formatUnitLabel(unit: string) {
+  const u = (unit || "").trim();
+  if (!u) return "unit";
+  if (u === "pcs") return "buc";
+  if (u === "m2") return "m²";
+  if (u === "m3") return "m³";
+  if (u === "kg") return "kg";
+  if (u === "pallet") return "palet";
+  return u;
+}
+
+function computeUnitPrice(total: unknown, qty: unknown) {
+  const t = toNumber(total);
+  const q = toNumber(qty);
+  if (t === null || q === null || q <= 0) return null;
+  return t / q;
 }
 
 function timeAgo(iso: string) {
@@ -87,7 +107,7 @@ export default async function SearchResults({ searchParams }: Props) {
   let query = supabase
     .from("listings")
     .select(
-      "id,title,price_total,currency,pickup_city,pickup_county,created_at,listing_images(storage_path,sort_order)",
+      "id,title,price_total,quantity,unit,currency,pickup_city,pickup_county,created_at,listing_images(storage_path,sort_order)",
     )
     .eq("status", "active");
 
@@ -240,21 +260,137 @@ export default async function SearchResults({ searchParams }: Props) {
               <h3 className="font-bold text-sm mb-3 text-[#111418]">
                 Interval Preț (RON)
               </h3>
-              <div className="text-xs text-[#617289]">
-                (MVP) Folosește query params:{" "}
-                <span className="font-mono">minPrice</span> /{" "}
-                <span className="font-mono">maxPrice</span>
-              </div>
+
+              <form method="GET" action="/search" className="space-y-3">
+                {/* Preserve other filters */}
+                {q && <input type="hidden" name="q" value={q} />}
+                {categorySlug && (
+                  <input type="hidden" name="category" value={categorySlug} />
+                )}
+                {city && <input type="hidden" name="city" value={city} />}
+                {county && <input type="hidden" name="county" value={county} />}
+                {sort && <input type="hidden" name="sort" value={sort} />}
+                <input type="hidden" name="page" value="1" />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#617289] uppercase tracking-wide mb-1">
+                      Min
+                    </label>
+                    <input
+                      name="minPrice"
+                      defaultValue={minPrice ?? ""}
+                      inputMode="numeric"
+                      className="w-full h-10 px-3 rounded-md border border-[#e5e7eb] bg-white text-sm"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#617289] uppercase tracking-wide mb-1">
+                      Max
+                    </label>
+                    <input
+                      name="maxPrice"
+                      defaultValue={maxPrice ?? ""}
+                      inputMode="numeric"
+                      className="w-full h-10 px-3 rounded-md border border-[#e5e7eb] bg-white text-sm"
+                      placeholder="100000"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full h-10 rounded-md bg-primary text-white font-bold text-sm"
+                >
+                  Aplică
+                </button>
+
+                {(minPrice !== null || maxPrice !== null) && (
+                  <Link
+                    href={`/search?${new URLSearchParams({
+                      ...(q ? { q } : {}),
+                      ...(categorySlug ? { category: categorySlug } : {}),
+                      ...(city ? { city } : {}),
+                      ...(county ? { county } : {}),
+                      ...(sort ? { sort } : {}),
+                      page: "1",
+                    }).toString()}`}
+                    className="block text-center text-xs text-primary font-bold hover:underline"
+                  >
+                    Elimină filtrul de preț
+                  </Link>
+                )}
+              </form>
             </div>
 
             <div className="pb-6 border-b border-[#f0f2f4]">
               <h3 className="font-bold text-sm mb-3 text-[#111418]">Locație</h3>
-              <div className="text-xs text-[#617289]">
-                (MVP) Folosește query params:{" "}
-                <span className="font-mono">city</span> /{" "}
-                <span className="font-mono">county</span>
-              </div>
+
+              <form method="GET" action="/search" className="space-y-3">
+                {/* Preserve other filters */}
+                {q && <input type="hidden" name="q" value={q} />}
+                {categorySlug && (
+                  <input type="hidden" name="category" value={categorySlug} />
+                )}
+                {minPrice !== null && (
+                  <input type="hidden" name="minPrice" value={String(minPrice)} />
+                )}
+                {maxPrice !== null && (
+                  <input type="hidden" name="maxPrice" value={String(maxPrice)} />
+                )}
+                {sort && <input type="hidden" name="sort" value={sort} />}
+                <input type="hidden" name="page" value="1" />
+
+                <div>
+                  <label className="block text-[11px] font-bold text-[#617289] uppercase tracking-wide mb-1">
+                    Oraș
+                  </label>
+                  <input
+                    name="city"
+                    defaultValue={city}
+                    className="w-full h-10 px-3 rounded-md border border-[#e5e7eb] bg-white text-sm"
+                    placeholder="ex. București"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-[#617289] uppercase tracking-wide mb-1">
+                    Județ
+                  </label>
+                  <input
+                    name="county"
+                    defaultValue={county}
+                    className="w-full h-10 px-3 rounded-md border border-[#e5e7eb] bg-white text-sm"
+                    placeholder="ex. Ilfov"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full h-10 rounded-md bg-primary text-white font-bold text-sm"
+                >
+                  Aplică
+                </button>
+
+                {(city || county) && (
+                  <Link
+                    href={`/search?${new URLSearchParams({
+                      ...(q ? { q } : {}),
+                      ...(categorySlug ? { category: categorySlug } : {}),
+                      ...(minPrice !== null ? { minPrice: String(minPrice) } : {}),
+                      ...(maxPrice !== null ? { maxPrice: String(maxPrice) } : {}),
+                      ...(sort ? { sort } : {}),
+                      page: "1",
+                    }).toString()}`}
+                    className="block text-center text-xs text-primary font-bold hover:underline"
+                  >
+                    Elimină filtrul de locație
+                  </Link>
+                )}
+              </form>
             </div>
+
           </div>
         </aside>
 
@@ -379,11 +515,6 @@ export default async function SearchResults({ searchParams }: Props) {
                     className="bg-white rounded-xl border border-[#e5e7eb] overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer flex flex-col h-full"
                   >
                     <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden">
-                      <div className="absolute top-3 right-3 bg-white/90 p-1.5 rounded-full z-10 hover:bg-white text-gray-500 hover:text-red-500 transition-colors">
-                        <span className="material-symbols-outlined text-lg block">
-                          favorite
-                        </span>
-                      </div>
                       <div
                         className="w-full h-full bg-cover bg-center group-hover:scale-105 transition-transform duration-500"
                         style={{ backgroundImage: `url(\"${imgUrl}\")` }}
@@ -395,11 +526,41 @@ export default async function SearchResults({ searchParams }: Props) {
                           {l.title}
                         </h3>
                       </div>
-                      <div className="flex items-baseline gap-2 mt-1">
-                        <span className="text-xl font-black text-primary">
-                          {formatMoney(l.price_total, l.currency)}
-                        </span>
-                      </div>
+                      {(() => {
+                        const unitLabel = formatUnitLabel(String(l.unit ?? ""));
+                        const unitPrice = computeUnitPrice(l.price_total, l.quantity);
+                        const qtyNum = toNumber(l.quantity);
+
+                        return (
+                          <div className="flex flex-col gap-1 mt-1">
+                            {unitPrice !== null ? (
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-xl font-black text-primary">
+                                  {unitPrice.toLocaleString("ro-RO", {
+                                    maximumFractionDigits: 2,
+                                  })}{" "}
+                                  {String(l.currency ?? "RON")}
+                                </span>
+                                <span className="text-sm text-[#617289] font-medium">
+                                  / {unitLabel}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-xl font-black text-primary">
+                                {formatMoney(l.price_total, l.currency)}
+                              </span>
+                            )}
+
+                            {qtyNum !== null && qtyNum > 0 && (
+                              <div className="text-xs text-[#617289]">
+                                Cantitate disponibilă:{" "}
+                                <span className="font-mono">{qtyNum}</span>{" "}
+                                <span className="font-mono">{unitLabel}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <div className="mt-auto pt-3 border-t border-gray-100 flex justify-between items-center text-xs text-[#617289]">
                         <div className="flex items-center gap-1">
                           <span className="material-symbols-outlined text-sm">
